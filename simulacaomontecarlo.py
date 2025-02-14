@@ -70,4 +70,4 @@ if st.button("Rodar Simulação"):
     ax.set_title("Distribuição dos Dias de Entrega")
     ax.set_xlabel("Dias")
     ax.set_ylabel("Frequência")
-    st.pyplot(fig)
+    st.pyplot(fig, clear_figure=True)
