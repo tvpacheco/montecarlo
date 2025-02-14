@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import datetime
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 def simular_previsao(n_simulacoes, qtd_itens_trabalho, min_historias, max_historias, prob_split, min_splits, max_splits,
                      prob_dependencia, media_espera, desvio_espera, data_inicio, foco_trabalho, semanas_estimacao,
@@ -65,9 +65,9 @@ if st.button("Rodar Simulação"):
         st.write(f"**P{p}:** {data}")
     
     # Plotando a distribuição dos resultados
-    fig, ax = plt.subplots()
-    ax.hist(resultados, bins=30, edgecolor='black', alpha=0.7)
-    ax.set_title("Distribuição dos Dias de Entrega")
-    ax.set_xlabel("Dias")
-    ax.set_ylabel("Frequência")
-    st.pyplot(fig, clear_figure=True)
+    #fig, ax = plt.subplots()
+   # ax.hist(resultados, bins=30, edgecolor='black', alpha=0.7)
+   # ax.set_title("Distribuição dos Dias de Entrega")
+   # ax.set_xlabel("Dias")
+   # ax.set_ylabel("Frequência")
+   # st.pyplot(fig, clear_figure=True)
