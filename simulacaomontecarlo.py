@@ -2,11 +2,23 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
+from scipy.stats import beta
+
+def pert_random(a, b, c, lamb=4, size=1):
+    """
+    Gera valores aleatórios com distribuição PERT.
+    """
+    alpha = 1 + lamb * (b - a) / (c - a)
+    beta_param = 1 + lamb * (c - b) / (c - a)
+    return a + (c - a) * beta.rvs(alpha, beta_param, size=size)
 
 def monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories, num_simulations=10000):
     """
-    Simula previsões de entrega com base no throughput histórico e distribuições Monte Carlo usando semanas.
+    Simula previsões de entrega com base no throughput histórico e distribuições Monte Carlo usando PERT.
     """
+    a, c = min(throughput_history), max(throughput_history)
+    b = np.median(throughput_history)  # Considerando a mediana como moda
+    
     simulated_durations = []
     
     for _ in range(num_simulations):
@@ -15,7 +27,8 @@ def monte_carlo_forecast(throughput_history, start_date, min_stories, max_storie
         stories_delivered = 0
         
         while stories_delivered < total_stories:
-            weekly_throughput = np.random.choice(throughput_history)
+            weekly_throughput = pert_random(a, b, c, size=1)[0]
+            weekly_throughput = max(1, int(round(weekly_throughput)))  # Garante pelo menos 1 história por semana
             stories_delivered += weekly_throughput
             weeks_elapsed += 1  # Conta em semanas
         
@@ -47,7 +60,7 @@ simulated_durations = monte_carlo_forecast(throughput_history, start_date, min_s
 forecast_results = get_forecast_weeks(simulated_durations, start_date)
 
 # Exibir os resultados no Streamlit
-st.title("Previsibilidade de Datas de Entrega - Modelo Troy Magennis")
+st.title("Previsibilidade de Datas de Entrega - Modelo Troy Magennis (PERTsss)")
 
 df_results = pd.DataFrame.from_dict(forecast_results, orient='index', columns=['Data Prevista'])
 df_results.index.name = 'Probabilidade (%)'
