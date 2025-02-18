@@ -5,31 +5,34 @@ from datetime import datetime, timedelta
 
 def monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories, num_simulations=10000):
     """
-    Simula previsões de entrega com base no throughput histórico e distribuições Monte Carlo.
+    Simula previsões de entrega com base no throughput histórico e distribuições Monte Carlo usando semanas.
     """
-    simulated_dates = []
+    simulated_durations = []
     
     for _ in range(num_simulations):
         total_stories = np.random.randint(min_stories, max_stories + 1)
-        days_elapsed = 0
+        weeks_elapsed = 0
         stories_delivered = 0
         
         while stories_delivered < total_stories:
             weekly_throughput = np.random.choice(throughput_history)
             stories_delivered += weekly_throughput
-            days_elapsed += 7  # Considera semanas completas
+            weeks_elapsed += 1  # Conta em semanas
         
-        delivery_date = start_date + timedelta(days=days_elapsed)
-        simulated_dates.append(delivery_date)
+        simulated_durations.append(weeks_elapsed)
     
-    return simulated_dates
+    return simulated_durations
 
-def get_forecast_dates(simulated_dates):
+def get_forecast_weeks(simulated_durations, start_date):
     """
-    Calcula percentis para previsão de datas.
+    Calcula percentis para previsão de semanas e converte para datas.
     """
     percentiles = [100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0]
-    forecast_results = {p: np.percentile(simulated_dates, p, interpolation='nearest') for p in percentiles}
+    forecast_results = {}
+    
+    for p in percentiles:
+        weeks = int(np.percentile(simulated_durations, p, interpolation='nearest'))
+        forecast_results[p] = start_date + timedelta(weeks=weeks)
     
     return forecast_results
 
@@ -40,8 +43,8 @@ min_stories = 15
 max_stories = 30
 
 # Simulação Monte Carlo
-simulated_dates = monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories)
-forecast_results = get_forecast_dates(simulated_dates)
+simulated_durations = monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories)
+forecast_results = get_forecast_weeks(simulated_durations, start_date)
 
 # Exibir os resultados no Streamlit
 st.title("Previsibilidade de Datas de Entrega - Modelo Troy Magennis")
