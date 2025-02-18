@@ -49,7 +49,7 @@ escopo_escolhido = st.selectbox("Clareza do Escopo", list(escopo_opcoes.keys()))
 multiplicador_baixo, multiplicador_alto = escopo_opcoes[escopo_escolhido]
 
 # Histórico de vazão semanal
-st.subheader("Histórico de Vazão (semanal)")
+st.subheader("Histórico de Vazão (semanas)")
 vazao_semanal = [st.number_input(f"Semana {i + 1}", 0, 50, val) for i, val in enumerate([9, 4, 12, 14, 4, 3, 3, 10, 9])]
 
 if st.button("Rodar Simulação"):
