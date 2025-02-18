@@ -1,69 +1,62 @@
 import streamlit as st
 import numpy as np
-import random
 import datetime
 
-# Parâmetros da simulação
-historical_throughput = [9, 4, 12, 14, 4, 3, 3, 10, 9]
-start_date = datetime.date(2025, 4, 1)
-simulated_days = 28  # Período da simulação (4 semanas)
+def simular_previsao(n_simulacoes, min_historias, max_historias, prob_split, min_splits, max_splits,
+                     data_inicio, foco_trabalho, semanas_estimacao, vazao_semanal, multiplicador_baixo, multiplicador_alto):
+    resultados = []
+    semanas_estimacao = min(semanas_estimacao, len(vazao_semanal))  # Evita erro de indexação
+    historico_throughput = np.array(vazao_semanal[-semanas_estimacao:]) * (foco_trabalho / 100)
 
-# Multiplicadores de escopo
-scope_multipliers = {
+    for _ in range(n_simulacoes):
+        backlog = np.random.randint(min_historias, max_historias + 1)  
+        dias = 0
+        entregues = 0
+
+        while entregues < backlog:
+            if np.random.rand() < prob_split:
+                backlog += np.random.randint(min_splits, max_splits + 1)
+
+            throughput = np.random.choice(historico_throughput) * np.random.uniform(multiplicador_baixo, multiplicador_alto)
+            entregues += throughput
+            dias += 7  # Contabilizando semanas inteiras para cada ciclo
+
+        resultados.append(dias)
+
+    percentis = {p: data_inicio + datetime.timedelta(days=int(np.percentile(resultados, p))) for p in range(0, 96, 5)}
+    return percentis
+
+# Interface no Streamlit
+st.title("Simulação de Previsibilidade de Entrega")
+data_inicio = st.date_input("Data de Início", value=datetime.date(2025, 4, 1))
+foco_trabalho = st.slider("Foco do Trabalho (%)", 10, 100, 75, 5)
+semanas_estimacao = st.slider("Semanas para Estimativa", 1, 4, 4)
+n_simulacoes = st.slider("Número de Simulações", 100, 10000, 5000, 100)
+min_historias = st.slider("Mínimo de Histórias", 1, 50, 15)
+max_historias = st.slider("Máximo de Histórias", min_historias, 50, 30)
+prob_split = st.slider("Probabilidade de Split (%)", 0, 100, 0) / 100
+min_splits = st.slider("Mínimo de Splits", 1, 5, 1)
+max_splits = st.slider("Máximo de Splits", min_splits, 5, 1)
+
+# Clareza do escopo e multiplicadores
+escopo_opcoes = {
     "Claro e compreendido": (1, 1),
     "Um pouco compreendido": (1, 1.5),
-    "Ainda não compreendido": (1.5, 2),
+    "Não realmente compreendido ainda": (1.5, 2),
     "Muito pouco claro ou compreendido": (1.75, 3)
 }
+escopo_escolhido = st.selectbox("Clareza do Escopo", list(escopo_opcoes.keys()))
+multiplicador_baixo, multiplicador_alto = escopo_opcoes[escopo_escolhido]
 
-# Configuração da Interface no Streamlit
-st.title("Simulação de Previsibilidade de Entrega")
+# Histórico de vazão semanal
+st.subheader("Histórico de Vazão (semanas)")
+vazao_semanal = [st.number_input(f"Semana {i + 1}", 0, 50, val) for i, val in enumerate([9, 4, 12, 14, 4, 3, 3, 10, 9])]
 
-# Entrada de parâmetros do usuário
-selected_scope = st.selectbox(
-    "Nível de compreensão do escopo:",
-    list(scope_multipliers.keys()),
-)
-
-low_multiplier, high_multiplier = scope_multipliers[selected_scope]
-
-min_stories = st.slider("Quantidade mínima de histórias", 10, 50, 15)
-max_stories = st.slider("Quantidade máxima de histórias", 20, 60, 30)
-
-split_low = st.slider("Mínimo de splits por história", 1, 5, 1)
-split_high = st.slider("Máximo de splits por história", 1, 5, 1)
-
-n_simulations = st.number_input("Número de Simulações", min_value=1000, max_value=50000, value=10000, step=1000)
-
-# Função de simulação
-def simulate_delivery(n_simulations):
-    results = []
-    for _ in range(n_simulations):
-        remaining_stories = random.randint(min_stories, max_stories)
-        remaining_stories *= random.uniform(low_multiplier, high_multiplier)
-        current_date = start_date
-
-        while remaining_stories > 0:
-            throughput = random.choice(historical_throughput)
-            remaining_stories -= throughput
-            current_date += datetime.timedelta(weeks=1)
-
-        results.append(current_date)
-
-    return results
-
-# Função para calcular percentis
-def calculate_percentiles(results):
-    percentiles = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95]
-    percentile_dates = {f"P{p}": np.percentile(results, p, method='nearest') for p in percentiles}
-    return percentile_dates
-
-# Botão para rodar a simulação
 if st.button("Rodar Simulação"):
-    simulated_results = simulate_delivery(n_simulations)
-    percentile_results = calculate_percentiles(simulated_results)
-
-    # Exibir resultados
-    st.subheader("Resultados da Simulação")
-    for key, value in percentile_results.items():
-        st.write(f"{key}: {value}")
+    percentis = simular_previsao(n_simulacoes, min_historias, max_historias, prob_split, min_splits,
+                                 max_splits, data_inicio, foco_trabalho, semanas_estimacao,
+                                 vazao_semanal, multiplicador_baixo, multiplicador_alto)
+    
+    st.write("### Resultados da Simulação")
+    for p, data in percentis.items():
+        st.write(f"**P{p}:** {data}")
