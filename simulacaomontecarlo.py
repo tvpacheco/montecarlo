@@ -1,71 +1,62 @@
-import numpy as np
-import pandas as pd
 import streamlit as st
-from datetime import datetime, timedelta
-from scipy.stats import beta
+import numpy as np
+import datetime
 
-def pert_random(a, b, c, lamb=4, size=1):
-    """
-    Gera valores aleatórios com distribuição PERT.
-    """
-    alpha = 1 + lamb * (b - a) / (c - a)
-    beta_param = 1 + lamb * (c - b) / (c - a)
-    return a + (c - a) * beta.rvs(alpha, beta_param, size=size)
+def simular_previsao(n_simulacoes, min_historias, max_historias, prob_split, min_splits, max_splits,
+                     data_inicio, foco_trabalho, semanas_estimacao, vazao_semanal, multiplicador_baixo, multiplicador_alto):
+    resultados = []
+    semanas_estimacao = min(semanas_estimacao, len(vazao_semanal))  # Evita erro de indexação
+    historico_throughput = np.array(vazao_semanal[-semanas_estimacao:]) * (foco_trabalho / 100)
 
-def monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories, num_simulations=10000):
-    """
-    Simula previsões de entrega com base no throughput histórico e distribuições Monte Carlo usando PERT.
-    """
-    a, c = min(throughput_history), max(throughput_history)
-    b = np.median(throughput_history)  # Considerando a mediana como moda
+    for _ in range(n_simulacoes):
+        backlog = np.random.randint(min_historias, max_historias + 1)  
+        dias = 0
+        entregues = 0
+
+        while entregues < backlog:
+            if np.random.rand() < prob_split:
+                backlog += np.random.randint(min_splits, max_splits + 1)
+
+            throughput = np.random.choice(historico_throughput) * np.random.uniform(multiplicador_baixo, multiplicador_alto)
+            entregues += throughput
+            dias += 7  # Contabilizando semanas inteiras para cada ciclo
+
+        resultados.append(dias)
+
+    percentis = {p: data_inicio + datetime.timedelta(days=int(np.percentile(resultados, p))) for p in range(0, 96, 5)}
+    return percentis
+
+# Interface no Streamlit
+st.title("Simulação de Previsibilidade de Entrega")
+data_inicio = st.date_input("Data de Início", value=datetime.date(2025, 4, 1))
+foco_trabalho = st.slider("Foco do Trabalho (%)", 10, 100, 75, 5)
+semanas_estimacao = st.slider("Semanas para Estimativa", 1, 4, 4)
+n_simulacoes = st.slider("Número de Simulações", 100, 10000, 5000, 100)
+min_historias = st.slider("Mínimo de Histórias", 1, 50, 15)
+max_historias = st.slider("Máximo de Histórias", min_historias, 50, 30)
+prob_split = st.slider("Probabilidade de Split (%)", 0, 100, 10) / 100
+min_splits = st.slider("Mínimo de Splits", 1, 5, 1)
+max_splits = st.slider("Máximo de Splits", min_splits, 5, 1)
+
+# Clareza do escopo e multiplicadores
+escopo_opcoes = {
+    "Claro e compreendido": (1, 1),
+    "Um pouco compreendido": (1, 1.5),
+    "Não realmente compreendido ainda": (1.5, 2),
+    "Muito pouco claro ou compreendido": (1.75, 3)
+}
+escopo_escolhido = st.selectbox("Clareza do Escopo", list(escopo_opcoes.keys()))
+multiplicador_baixo, multiplicador_alto = escopo_opcoes[escopo_escolhido]
+
+# Histórico de vazão semanal
+st.subheader("Histórico de Vazão (semanas)")
+vazao_semanal = [st.number_input(f"Semana {i + 1}", 0, 50, val) for i, val in enumerate([9, 4, 12, 14, 4, 3, 3, 10, 9])]
+
+if st.button("Rodar Simulação"):
+    percentis = simular_previsao(n_simulacoes, min_historias, max_historias, prob_split, min_splits,
+                                 max_splits, data_inicio, foco_trabalho, semanas_estimacao,
+                                 vazao_semanal, multiplicador_baixo, multiplicador_alto)
     
-    simulated_durations = []
-    
-    for _ in range(num_simulations):
-        total_stories = np.random.randint(min_stories, max_stories + 1)
-        weeks_elapsed = 0
-        stories_delivered = 0
-        
-        while stories_delivered < total_stories:
-            weekly_throughput = pert_random(a, b, c, size=1)[0]
-            weekly_throughput = max(1, int(round(weekly_throughput)))  # Garante pelo menos 1 história por semana
-            stories_delivered += weekly_throughput
-            weeks_elapsed += 1  # Conta em semanas
-        
-        simulated_durations.append(weeks_elapsed)
-    
-    return simulated_durations
-
-def get_forecast_weeks(simulated_durations, start_date):
-    """
-    Calcula percentis para previsão de semanas e converte para datas.
-    """
-    percentiles = [100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0]
-    forecast_results = {}
-    
-    for p in percentiles:
-        weeks = int(np.percentile(simulated_durations, p, interpolation='nearest'))
-        forecast_results[p] = start_date + timedelta(weeks=weeks)
-    
-    return forecast_results
-
-# Parâmetros fornecidos pelo usuário
-throughput_history = [9, 4, 12, 14, 4, 3, 3, 10, 9]
-start_date = datetime(2025, 4, 1)
-min_stories = 15
-max_stories = 30
-
-# Simulação Monte Carlo
-simulated_durations = monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories)
-forecast_results = get_forecast_weeks(simulated_durations, start_date)
-
-# Exibir os resultados no Streamlit
-st.title("Previsibilidade de Datas de Entrega - Modelo Troy Magennis (PERTsss)")
-
-df_results = pd.DataFrame.from_dict(forecast_results, orient='index', columns=['Data Prevista'])
-df_results.index.name = 'Probabilidade (%)'
-df_results = df_results.sort_index(ascending=False)
-
-df_results['Data Prevista'] = df_results['Data Prevista'].apply(lambda x: x.strftime('%d/%m/%Y'))
-
-st.table(df_results)
+    st.write("### Resultados da Simulação")
+    for p, data in percentis.items():
+        st.write(f"**P{p}:** {data}")
