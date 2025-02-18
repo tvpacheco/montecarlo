@@ -1,63 +1,55 @@
-import streamlit as st
 import numpy as np
-import random
-import datetime
+import pandas as pd
+import streamlit as st
+from datetime import datetime, timedelta
 
-# Parâmetros da simulação
-historical_throughput = [9, 4, 12, 14, 4, 3, 3, 10, 9]
-start_date = datetime.date(2025, 4, 1)
+def monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories, num_simulations=10000):
+    """
+    Simula previsões de entrega com base no throughput histórico e distribuições Monte Carlo.
+    """
+    simulated_dates = []
+    
+    for _ in range(num_simulations):
+        total_stories = np.random.randint(min_stories, max_stories + 1)
+        days_elapsed = 0
+        stories_delivered = 0
+        
+        while stories_delivered < total_stories:
+            weekly_throughput = np.random.choice(throughput_history)
+            stories_delivered += weekly_throughput
+            days_elapsed += 7  # Considera semanas completas
+        
+        delivery_date = start_date + timedelta(days=days_elapsed)
+        simulated_dates.append(delivery_date)
+    
+    return simulated_dates
+
+def get_forecast_dates(simulated_dates):
+    """
+    Calcula percentis para previsão de datas.
+    """
+    percentiles = [100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0]
+    forecast_results = {p: np.percentile(simulated_dates, p, interpolation='nearest') for p in percentiles}
+    
+    return forecast_results
+
+# Parâmetros fornecidos pelo usuário
+throughput_history = [9, 4, 12, 14, 4, 3, 3, 10, 9]
+start_date = datetime(2025, 4, 1)
 min_stories = 15
 max_stories = 30
-split_low = 1
-split_high = 1
-simulated_days = 28  # Período da simulação (4 semanas)
 
-# Multiplicadores de escopo
-scope_multipliers = {
-    "Claro e compreendido": (1, 1),
-    "Um pouco compreendido": (1, 1.5),
-    "Ainda não compreendido": (1.5, 2),
-    "Muito pouco claro ou compreendido": (1.75, 3)
-}
+# Simulação Monte Carlo
+simulated_dates = monte_carlo_forecast(throughput_history, start_date, min_stories, max_stories)
+forecast_results = get_forecast_dates(simulated_dates)
 
-# Criar distribuição cumulativa do throughput
-throughput_distribution = np.random.choice(historical_throughput, size=10000, replace=True)
+# Exibir os resultados no Streamlit
+st.title("Previsibilidade de Datas de Entrega - Modelo Troy Magennis")
 
-def simulate_delivery(n_simulations=10000, selected_scope="Claro e compreendido"):
-    results = []
-    low_multiplier, high_multiplier = scope_multipliers[selected_scope]
-    
-    for _ in range(n_simulations):
-        remaining_stories = random.randint(min_stories, max_stories)
-        remaining_stories *= random.uniform(low_multiplier, high_multiplier)
-        current_date = start_date
-        
-        while remaining_stories > 0:
-            throughput = np.random.choice(throughput_distribution)  # Uso da distribuição cumulativa
-            remaining_stories -= throughput
-            current_date += datetime.timedelta(weeks=1)
-        
-        results.append(current_date)
-    
-    return results
+df_results = pd.DataFrame.from_dict(forecast_results, orient='index', columns=['Data Prevista'])
+df_results.index.name = 'Probabilidade (%)'
+df_results = df_results.sort_index(ascending=False)
 
-def calculate_percentiles(results):
-    percentiles = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95]
-    percentile_dates = {f"P{p}": np.percentile(results, p, method='nearest') for p in percentiles}
-    return percentile_dates
+df_results['Data Prevista'] = df_results['Data Prevista'].apply(lambda x: x.strftime('%d/%m/%Y'))
 
-# Interface do Streamlit
-st.title("Simulação de Previsibilidade - Modelo de Monte Carlo")
-
-selected_scope = st.selectbox("Nível de clareza do escopo:", list(scope_multipliers.keys()))
-n_simulations = st.slider("Número de simulações:", min_value=1000, max_value=50000, value=10000, step=5000)
-
-if st.button("Rodar Simulação"):
-    st.write("Executando a simulação, aguarde...")
-    simulated_results = simulate_delivery(n_simulations, selected_scope)
-    percentile_results = calculate_percentiles(simulated_results)
-
-    st.write("### Resultados da Simulação:")
-    for key, value in percentile_results.items():
-        st.write(f"{key}: {value}")
-
+st.table(df_results)
